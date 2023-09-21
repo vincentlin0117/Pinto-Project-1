@@ -34,6 +34,10 @@ Vincent Lin vlin42@tntech.edu
 
 >> A2: Briefly describe what happens in a call to timer_sleep(),
 >> including the effects of the timer interrupt handler.
+	>> In a call to timer_sleep(), this will put the calling thread to sleep for a specified
+	amount of time by blocking it and adding it to a timer queue. 
+	This then lets the scheduler handle the selection/execution of threads 
+	for when they are supposed to wake up based upon the timer interrupt handler.
 
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
