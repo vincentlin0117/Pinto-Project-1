@@ -109,11 +109,11 @@ Vincent Lin vlin42@tntech.edu
 timer  recent_cpu    priority   thread
 ticks   A   B   C   A   B   C   to run
 -----  --  --  --  --  --  --   ------
- 0
- 4
- 8
-12
-16
+ 0		0	0	0   63  61  59	  A
+ 4		4   0   0   61  61  59    A
+ 8		8   4   0   59  59  59    B
+12		12  8   4   57  57  57    C
+16	    16 12   8   55  55  55    A
 20
 24
 28
