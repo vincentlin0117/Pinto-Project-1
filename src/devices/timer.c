@@ -31,9 +31,6 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-//////////////////////
-struct list sleep_list;
-
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -41,7 +38,6 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-  list_init(&sleep_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -87,49 +83,18 @@ int64_t
 timer_elapsed (int64_t then) 
 {
   return timer_ticks () - then;
-}
-
-
-static bool compare_threads(const struct list_elem * lthread, const struct list_elem *rthread, void *aux UNUSED){
-  struct thread *a = list_entry (lthread, struct thread, telem);
-  struct thread *b = list_entry (rthread, struct thread, telem);
-  if (a->wakeup_tick != b->wakeup_tick){
-    return a->wakeup_tick < b->wakeup_tick;
-  }
-  else{
-    //printf("a priority:%d vs b prioirty%d\n",a->priority,b->priority);
-    return a->priority > b->priority;
-  }
-  
-
-  
-} 
+}  
+ 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
 timer_sleep (int64_t ticks) 
 {
-  
-  struct thread * t = thread_current();
-  
-  ASSERT (intr_get_level () == INTR_ON);
-  
-  t->wakeup_tick = timer_ticks() + ticks;
-  
-  intr_disable();
-  
-  list_insert_ordered(&sleep_list,&t->telem,compare_threads,NULL);
+  enum intr_level old_level;
 
-  intr_enable();
-
-  sema_down(&t->sema);
-
-  /*
-  int64_t start = timer_ticks ();
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
-  */
+  old_level = intr_disable ();
+  thread_sleep (ticks);
+  intr_set_level (old_level);
 
 }
 
@@ -207,22 +172,8 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-  struct thread *t;
   ticks++;
   thread_tick ();
-
-  
-  enum intr_level old_level = intr_disable();
-  while(!list_empty(&sleep_list)){
-    t = list_entry(list_front(&sleep_list), struct thread, telem);
-    if (ticks < t->wakeup_tick){
-      break;
-    }
-    sema_up(&t->sema);
-    list_pop_front(&sleep_list);
-  }
-  intr_set_level(old_level);
-
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

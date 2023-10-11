@@ -45,6 +45,9 @@ struct kernel_thread_frame
     void *aux;                  /* Auxiliary data for function. */
   };
 
+  // List of threads that are asleep
+  static struct list sleep_list;
+
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
@@ -71,6 +74,9 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+//Used to keep the list of currently sleeping threads in the correct order
+static bool sleeping_thread_comparison (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -92,6 +98,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -125,6 +132,8 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
+  struct thread *sleeping_thread;
+  struct list_elem *e;
 
   /* Update statistics. */
   if (t == idle_thread)
@@ -139,6 +148,23 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+
+  //Wake up any sleeping threads
+  if (!list_empty (&sleep_list))
+  {
+    sleeping_thread = list_entry(list_front(&sleep_list), struct thread, sleep_elem);
+    sleeping_thread->wakeup_tick -= 1;
+    for (e = list_begin (&sleep_list); e != list_end (&sleep_list); )
+    {
+      sleeping_thread = list_entry (e, struct thread, sleep_elem);
+      if (sleeping_thread->wakeup_tick > 0)
+      {
+        break;
+      }
+      e = list_remove (e);
+      thread_unblock (sleeping_thread);
+    }
+  }
 }
 
 /* Prints thread statistics. */
@@ -220,6 +246,26 @@ thread_block (void)
 
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
+}
+
+/* Puts the thread to sleep, and sets it to be woken up
+after a given amount of clock ticks. */
+void
+thread_sleep (int64_t ticks)
+{
+  struct thread *t = thread_current();
+
+  ASSERT (!intr_context() );
+  ASSERT (!intr_get_level () == INTR_ON);
+
+  if (ticks > 0)
+  {
+    t->wakeup_tick = ticks;
+    list_insert_ordered (&sleep_list, &t->sleep_elem, sleeping_thread_comparison, NULL);
+
+    thread_block();
+  }
+  
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -337,14 +383,21 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  return;
+  thread_current()->priority = new_priority;
 }
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  enum  intr_level old_level;
+  int priority;
+
+  old_level = intr_disable();
+  priority = thread_current()->priority;
+  intr_set_level  (old_level);
+
+  return priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -583,6 +636,28 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+/* Keeps the list of sleeping threads in order*/
+static bool
+sleeping_thread_comparison (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+  struct thread *to_sleep;
+  struct thread *sleeping;
+
+  to_sleep = list_entry(a, struct thread, sleep_elem);
+  sleeping = list_entry(b, struct thread, sleep_elem);
+
+  if (to_sleep->wakeup_tick < sleeping->wakeup_tick)
+  {
+    sleeping->wakeup_tick -= to_sleep->wakeup_tick;
+    return true;
+  }
+  else
+  {
+    to_sleep->wakeup_tick -= sleeping->wakeup_tick;
+    return false;
+  }
 }
 
 /* Offset of `stack' member within `struct thread'.
