@@ -91,10 +91,11 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
    //////////
-      int64_t wakeup_tick;              /* Thread wakeup time in ticks. */
-      struct semaphore sema;            
-      struct list_elem telem;           /* List element for wait queue*/
 
+   int originalPriority;
+
+   struct list_elem locks;
+   struct lock * waitingLock; // 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 

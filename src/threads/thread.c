@@ -337,7 +337,12 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  return;
+  enum intr_level old_level;
+  old_level = intr_disable();
+  if(thread_current()->priority < new_priority){
+    thread_current()->originalPriority = thread_current()->priority;
+    thread_current()->priority = new_priority;
+
 }
 
 /* Returns the current thread's priority. */
@@ -466,13 +471,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  sema_init(&t->sema,0); //initialize the sema value to 0
-
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
-
-  //sema_init(&t->sema,0);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
