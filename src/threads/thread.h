@@ -4,7 +4,6 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-#include "synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -89,13 +88,15 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    struct list_elem allelem;           /* List element for all threads list. */
+    struct list_elem allelem;           /* List element for all threads list. */    
+    struct list_elem sleep_elem;
    //////////
+   int64_t wakeup_tick; // when it should wake up
 
    int originalPriority;
+   struct list locks; // locks held by thread
+   struct lock * waitingLock; // lock thread is waiting for
 
-   struct list_elem locks;
-   struct lock * waitingLock; // 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -125,6 +126,7 @@ typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
 void thread_block (void);
+
 void thread_unblock (struct thread *);
 
 struct thread *thread_current (void);
@@ -146,5 +148,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-//static bool compare_threads(struct list_elem * lthread, struct list_elem *rthread);
+void thread_set_sleeping(int64_t);
+void attemptThreadYield(void);
+bool compareThreadPriority(const struct list_elem *a,const struct list_elem *b, void * aux UNUSED);
+void reorderReadyList(struct thread *t);
 #endif /* threads/thread.h */
