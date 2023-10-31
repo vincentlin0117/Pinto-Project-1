@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "fixed_point.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -97,6 +98,11 @@ struct thread
    struct list locks; // locks held by thread
    struct lock * waitingLock; // lock thread is waiting for
 
+
+   int nice;
+
+   fixed_t recent_cpu;
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -152,4 +158,5 @@ void thread_set_sleeping(int64_t);
 void attemptThreadYield(void);
 bool compareThreadPriority(const struct list_elem *a,const struct list_elem *b, void * aux UNUSED);
 void reorderReadyList(struct thread *t);
+void thread_mlfqs_update_per_second(void);
 #endif /* threads/thread.h */
