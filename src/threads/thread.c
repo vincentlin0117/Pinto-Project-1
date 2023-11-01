@@ -166,27 +166,8 @@ thread_tick (void)
     }
   }
 
-  /*
-  //Wake up any sleeping threads
-  if (!list_empty (&sleep_list))
-  {
-    sleeping_thread = list_entry(list_front(&sleep_list), struct thread, sleep_elem);
-    sleeping_thread->wakeup_tick -= 1;
-    for (e = list_begin (&sleep_list); e != list_end (&sleep_list); )
-    {
-      sleeping_thread = list_entry (e, struct thread, sleep_elem);
-      if (sleeping_thread->wakeup_tick > 0)
-      {
-        break;
-      }
-      e = list_remove (e);
-      thread_unblock (sleeping_thread);
-    }
-  }
-  */
-    /* Iterate through all sleeping threads in SLEEPING LIST, decrease the
-     REMAINING TIME TO WAKE UP of these threads by 1. If any of them have a
-	 zero REMAINING TIME TO WAKE UP, wake up these threads. */
+  // look at all sleeping thread in thread list to see if it is time to wake up
+  // -1 toe every wake up tick, if a tick == 0  then wake it up
   struct list_elem *e = list_begin (&sleep_list);
   struct list_elem *temp;
   
@@ -198,13 +179,12 @@ thread_tick (void)
 	  
 	  ASSERT (t->status == THREAD_BLOCKED);
 	  
-	  if (t->wakeup_tick > 0)
-        {
-          t->wakeup_tick--;
-	      if (t->wakeup_tick <= 0)
-		    {
-			  thread_unblock(t);
-			  list_remove (temp);
+	  if (t->wakeup_tick > 0){
+      t->wakeup_tick--;
+
+      if (t->wakeup_tick <= 0){
+        thread_unblock(t);
+        list_remove (temp);
 			}
 	    }
 	}
@@ -700,10 +680,9 @@ allocate_tid (void)
 }
 
 
-/* Complete all thread-specific Settings while putting the current thread to
-   sleep. */
+// set the wakeup tick, add thread to the sleep list and then block thread
 void
-thread_set_sleeping (int64_t ticks)
+threadSleep (int64_t ticks)
 {
   struct thread *cur = thread_current ();
   cur->wakeup_tick = ticks;
