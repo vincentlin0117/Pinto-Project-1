@@ -1,16 +1,13 @@
-			+--------------------+
-			|        CS 140      |
-			| PROJECT 1: THREADS |
-			|   DESIGN DOCUMENT  |
-			+--------------------+
-				  
+			+----------------------+
+			|        CS 4100       |
+			| PROJECT 1: THREADS   |
+			|   DESIGN DOCUMENT    |
+			+----------------------+
+				   
 ---- GROUP ----
 
->> Fill in the names and email addresses of your group members.
-
-Harrison McLain hrmclain42@tntech.edu
-Serena LaBelle sllabelle42@tntech.edu
-Vincent Lin vlin42@tntech.edu
+Vincent Lin <vlin42@tntech.edu>
+Harrison McLain <hrmclain42@tntech.edu>
 
 ---- PRELIMINARIES ----
 
@@ -21,146 +18,356 @@ Vincent Lin vlin42@tntech.edu
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
 
-			     ALARM CLOCK
-			     ===========
+					ALARM CLOCK
+					===========
 
 ---- DATA STRUCTURES ----
 
->> A1: Copy here the declaration of each new or changed `struct' or
->> `struct' member, global or static variable, `typedef', or
+>> A1: Copy here the declaration of each new or changed `struct' or 
+>> `struct' member, global or static variable, `typedef', or 
 >> enumeration.  Identify the purpose of each in 25 words or less.
+
+	Struct threads
+	{
+		Int64t wakeup_tick 	// know when the process should wake up
+		Struct list_elem sleep_elem // list element for the sleep_list
+	}
 
 ---- ALGORITHMS ----
 
->> A2: Briefly describe what happens in a call to timer_sleep(),
+>> A2: Briefly describe what happens in a call to timer_sleep(), 
 >> including the effects of the timer interrupt handler.
-	>> In a call to timer_sleep(), this will put the calling thread to sleep for a specified
-	amount of time by blocking it and adding it to a timer queue. 
-	This then lets the scheduler handle the selection/execution of threads 
-	for when they are supposed to wake up based upon the timer interrupt handler.
 
->> A3: What steps are taken to minimize the amount of time spent in
+	During a call to timer_sleep(), first it checks if ticks is less 
+	than 0, if it is it breaks out of the function. If it is greater 
+	than 0, it asserts that the interrupts are on. It then disables 
+	the interrupt and calls threadSleep(). Thread sleep will store 
+	the wakeup_tick, put the thread in the sleep_list and get 
+	blocked.Every time timer_interrupt is called, timer_interrupt 
+	will call thread_tick which will increase the tick count. It 
+	will then check all threads in sleep_list to see if it is 
+	time for any of the threads to wake up. If it is it will 
+	unblock the thread and then remove it from sleep_list
+
+>> A3: What steps are taken to minimize the amount of time spent in 
 >> the timer interrupt handler?
 
+	There are less threads that program needs to go through while 
+	figuring out when to wake up a thread.
+
 ---- SYNCHRONIZATION ----
 
->> A4: How are race conditions avoided when multiple threads call
+>> A4: How are race conditions avoided when multiple threads call 
 >> timer_sleep() simultaneously?
 
->> A5: How are race conditions avoided when a timer interrupt occurs
+	Situation is avoided by having timer_sleep disable interrupts 
+	so that other threads will have to wait.
+
+>> A5: How are race conditions avoided when a timer interrupt occurs 
 >> during a call to timer_sleep()?
+
+	Race conditions are avoided in this situation by disabling 
+	interrupts during this process.
 
 ---- RATIONALE ----
 
->> A6: Why did you choose this design?  In what ways is it superior to
+>> A6: Why did you choose this design?  In what ways is it superior to 
 >> another design you considered?
 
-			 PRIORITY SCHEDULING
-			 ===================
+	We chose this design because if there are 2 threads that should wake 
+	up at the same time it can wake both threads up compared to the other 
+	design idea we had of using an ordered list. In the same scenario if 
+	there are 2 threads that needed to be woken it would only wake the 
+	first one up.
+
+
+					PRIORITY SCHEDULING
+					===================
 
 ---- DATA STRUCTURES ----
 
->> B1: Copy here the declaration of each new or changed `struct' or
->> `struct' member, global or static variable, `typedef', or
+>> B1: Copy here the declaration of each new or changed `struct' or 
+>> `struct' member, global or static variable, `typedef', or 
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
->> B2: Explain the data structure used to track priority donation.
->> Use ASCII art to diagram a nested donation.  (Alternately, submit a
+	Struct thread
+	{
+	Int originalPriority// store original priority
+	Struct list locks; // locks the current thread has
+	Struct lock *  waitingLock; // locks thread is waiting for
+	}
+	
+	Struct lock
+	{
+		Struct list_elem elem;	// list element for lock list
+		Int priority; // carry the max priority
+	}
+
+	Struct semaphore_elem
+	{
+		Int priority; // hold max priority
+	}
+
+>> B2: Explain the data structure used to track priority donation. 
+>> Use ASCII art to diagram a nested donation.  (Alternatively, submit a 
 >> .png file.)
+
+	Threads have a list of locks that it has and a lock that it is 
+	waiting for. When threads acquire a lock, it updates its list 
+	of locks and the lock structure will update the holder and its 
+	priority. When priority gets donated it. The original priority 
+	gets stored in originalPriority and the new priority is passed 
+	to the thread through the locks. When locks are released the 
+	thread’s priority is restored to the value of originalPriority
+	 ___________      	 ___________  	   	 ___________			____________			____________
+	|Thread A   |	 	|Thread B   |	   	|Thread C   | 	       |Lock F      | 	       |Lock M      |
+	|p:63       |  		|p: 23      |  	 	|p:10       |	       |holder:     |	       |holder:     |
+	|orig_p: 63 |		|orig_p: 23 | 		|orig_p:10  |          |waiter:	    |          |waiter:	    |
+	|locks:     |	 	|Locks:     |     	|locks:     |	       |p:	  		|	       |p:	 		|
+	|Wait:      |	 	|Wait:      |     	|Wait:      |	       |	   		|	       |	  		|
+	|___________| 	 	|___________|	   	|___________|	       |____________|	       |____________|
+
+
+	Thread C: Lock_aquire(F)
+
+	 ___________      	 ___________  	   	 ___________			____________			____________
+	|Thread A   |	 	|Thread B   |	   	|Thread C   | 	       |Lock F      | 	       |Lock M      |
+	|p:63       |  		|p: 23      |  	 	|p:10       |	       |holder: C   |	       |holder:     |
+	|orig_p: 63 |		|orig_p: 23 | 		|orig_p:10  |          |waiter:	    |          |waiter:	    |
+	|locks:     |	 	|Locks:     |     	|locks: F   |	       |p:10	    |	       |p:	    	|
+	|Wait:      |	 	|Wait:      |     	|Wait:      |	       |	  		|	       |	    	|
+	|___________| 	 	|___________|	   	|___________|	       |____________|	       |____________|
+
+	Thread B: Lock_aquire(M)
+
+	 ___________      	 ___________  	   	 ___________			____________			____________
+	|Thread A   |	 	|Thread B   |	   	|Thread C   | 	       |Lock F      | 	       |Lock M      |
+	|p:63       |  		|p: 23      |  	 	|p:10       |	       |holder: C   |	       |holder: B   |
+	|orig_p: 63 |		|orig_p: 23 | 		|orig_p:10  |          |waiter:	    |          |waiter:	    |
+	|locks:     |	 	|Locks: M   |     	|locks: F   |	       |p:10	    |	       |p: 23	    |
+	|Wait:      |	 	|Wait:      |     	|Wait:      |	       |	   		|	       |	   		|
+	|___________| 	 	|___________|	   	|___________|	       |____________|	       |____________|
+
+	Thread B: Lock_aquire(F)
+
+	 ___________      	 ___________  	   	 ___________			____________			____________
+	|Thread A   |	 	|Thread B   |	   	|Thread C   | 	       |Lock F      | 	       |Lock M      |
+	|p:63       |  		|p: 23      |  	 	|p:23       |	       |holder: C   |	       |holder: B   |
+	|orig_p: 63 |		|orig_p: 23 | 		|orig_p:10  |          |waiter:	B   |          |waiter:	    |
+	|locks:     |	 	|Locks: M   |     	|locks: F   |	       |p:23	    |	       |p: 23	    |
+	|Wait:      |	 	|Wait: F    |     	|Wait:      |	       |		    |	       |		    |
+	|___________| 	 	|___________|	   	|___________|	       |____________|	       |____________|
+
+	Thread A: Lock_aquire(M)
+	 ___________      	 ___________  	   	 ___________			____________			____________
+	|Thread A   |	 	|Thread B   |	   	|Thread C   | 	       |Lock F      | 	       |Lock M      |
+	|p:63       |  		|p: 63      |  	 	|p:63       |	       |holder: C   |	       |holder: B   |
+	|orig_p: 63 |		|orig_p: 23 | 		|orig_p:10  |          |waiter:	B   |          |waiter:	A   |
+	|locks:     |	 	|Locks: M   |     	|locks: F   |	       |p:63	    |	       |p: 63	    |
+	|Wait: M    |	 	|Wait: F    |     	|Wait:      |	       |	   		|	       |	  		|
+	|___________| 	 	|___________|	   	|___________|	       |____________|	       |____________|
+
+	Thread C: Lock_release(F)
+	 ___________      	 ___________  	   	 ___________			____________			____________
+	|Thread A   |	 	|Thread B   |	   	|Thread C   | 	       |Lock F      | 	       |Lock M      |
+	|p:63       |  		|p: 63      |  	 	|p:10       |	       |holder: B   |	       |holder: B   |
+	|orig_p: 63 |		|orig_p: 23 | 		|orig_p:10  |          |waiter:	    |          |waiter:	A   |
+	|locks:     |	 	|Locks: M F |     	|locks:     |	       |p:63	    |	       |p: 63	    |
+	|Wait: M    |	 	|Wait:      |     	|Wait:      |	       |	   		|	       |	   		|
+	|___________| 	 	|___________|	   	|___________|	       |____________|	       |____________|
+
+	Thread B: lock_release(M) & lock_release_(F)
+	 ___________      	 ___________  	   	 ___________			____________			____________
+	|Thread A   |	 	|Thread B   |	   	|Thread C   | 	       |Lock F      | 	       |Lock M      |
+	|p:63       |  		|p: 23      |  	 	|p:10       |	       |holder:     |	       |holder: A   |
+	|orig_p: 63 |		|orig_p: 23 | 		|orig_p:10  |          |waiter:	    |          |waiter:	    |
+	|locks:M    |	 	|Locks:     |     	|locks:     |	       |p:	    	|	       |p: 63	    |
+	|Wait:      |	 	|Wait:      |     	|Wait:      |	       |	    	|	       |	    	|
+	|___________| 	 	|___________|	   	|___________|	       |____________|	       |____________|
 
 ---- ALGORITHMS ----
 
->> B3: How do you ensure that the highest priority thread waiting for
+>> B3: How do you ensure that the highest priority thread waiting for 
 >> a lock, semaphore, or condition variable wakes up first?
 
->> B4: Describe the sequence of events when a call to lock_acquire()
+	The thread with the highest priority and the most recently changed 
+	priority value is chosen and woken up. 
+
+>> B4: Describe the sequence of events when a call to lock_acquire() 
 >> causes a priority donation.  How is nested donation handled?
 
->> B5: Describe the sequence of events when lock_release() is called
+	When lock_acquire() is called on thread A and it is unable to acquire 
+	that lock then it has to donate its priority to the thread that 
+	holds the lock currently. It then updates the priorities of the 
+	thread that has the lock. In the case of nested donations, this 
+	problem is solved via the same process above but with recursive 
+	priority calculations until a viable thread is found.
+
+>> B5: Describe the sequence of events when lock_release() is called 
 >> on a lock that a higher-priority thread is waiting for.
+
+	After calling lock_release(), wake up the thread with the highest 
+	priority that still needs the lock. Then add the lock to the list 
+	of that thread. 
 
 ---- SYNCHRONIZATION ----
 
->> B6: Describe a potential race in thread_set_priority() and explain
->> how your implementation avoids it.  Can you use a lock to avoid
+>> B6: Describe a potential race in thread_set_priority() and explain 
+>> how your implementation avoids it.  Can you use a lock to avoid 
 >> this race?
 
+	If thread A is trying to update its priority while thread B is 
+	trying to access thread A priority. This is prevented by using 
+	a semaphore which locks the set_priority when it is called so 
+	that threads are not able to access the priority.
+
 ---- RATIONALE ----
+ 
+>> B7: Why did you choose this design?  In what ways is it superior to 
+>> another design  you considered?
 
->> B7: Why did you choose this design?  In what ways is it superior to
->> another design you considered?
+	We chose this design because it sounds easier to keep track of the 
+	priority donation and it sounds easier to implement. The other 
+	design we considered was using a stack to keep track of priority 
+	donation. However using this design, the one that will get the 
+	lock after a lock is released will be the most recent call to 
+	acquire the lock instead of the thread with the highest priority.
 
-			  ADVANCED SCHEDULER
-			  ==================
+
+					ADVANCED SCHEDULER
+					====================
 
 ---- DATA STRUCTURES ----
 
->> C1: Copy here the declaration of each new or changed `struct' or
->> `struct' member, global or static variable, `typedef', or
->> enumeration.  Identify the purpose of each in 25 words or less.
+>> C1: Copy here the declaration of each new or changed `struct' or 
+>> `struct' member, global or static variable, `typedef', or 
+>> enumeration. Identify the purpose of each in 25 words or less.
+
+	Struct thread
+	{
+	Int nice; //stores the nice value for a thread
+	fixed_t recent_cpu; //Stores the recent CPU value
+	}
+	Static fixed_t load_average; //Stores the system load average
+
 
 ---- ALGORITHMS ----
 
->> C2: Suppose threads A, B, and C have nice values 0, 1, and 2.  Each
->> has a recent_cpu value of 0.  Fill in the table below showing the
->> scheduling decision and the priority and recent_cpu values for each
+>> C2: Suppose threads A, B, and C have nice values 0, 1, and 2. Each 
+>> has a recent_cpu value of 0. Fill in the table below showing the 
+>> scheduling decision and the priority and recent_cpu values for each 
 >> thread after each given number of timer ticks:
 
-timer  recent_cpu    priority   thread
-ticks   A   B   C   A   B   C   to run
------  --  --  --  --  --  --   ------
- 0		0	0	0   63  61  59	  A
- 4		4   0   0   61  61  59    A
- 8		8   4   0   59  59  59    B
-12		12  8   4   57  57  57    C
-16	    16 12   8   55  55  55    A
-20
-24
-28
-32
-36
+	Timer   recent_cpu		  priority		thread
+	ticks   A    B    C      A    B    C	to run
+	-----  ---  ---  ---    ---  ---  ---	------
+	0		0	 0	  0		 63	  61   59	  A
+	4		4	 0	  0		 62	  61   59	  A
+	8		8	 0	  0		 61	  61   59	  A
+	12		12	 0	  0		 60	  61   59	  B
+	16		12	 4	  0		 60	  60   59	  B
+	20		12	 8	  0		 60	  59   59	  A
+	24		16	 8	  0		 59	  59   59	  C
+	28		16	 8	  4		 59	  59   58	  A
+	32		20	 8	  4		 58	  59   58	  B
+	36		20	 12	  4		 58	  58   58	  B
 
->> C3: Did any ambiguities in the scheduler specification make values
->> in the table uncertain?  If so, what rule did you use to resolve
->> them?  Does this match the behavior of your scheduler?
+	8 : Nothing is on the tiebreak queue yet, so A will run first. 
+	The queue will now look like A.
 
->> C4: How is the way you divided the cost of scheduling between code
+	16: B is not on the tiebreak queue yet, so B will run. 
+	The queue will now look like BA
+
+	24: C is not on the tiebreak queue yet, so C will run. 
+	The queue will now look like CBA.
+
+	28: A is first on the tiebreak queue, so it will run. 
+	The queue will now look like ACB.
+
+	36: B is first on the tiebreak queue, so it will run.
+	The queue will now look like BAC.
+
+>> C3: Did any ambiguities in the scheduler specification make values 
+>> in the table uncertain?  If so, what rule did you use to resolve 
+>> them?  Does this match the behavior of your scheduler? 
+
+	There are ambiguities here. We added 4 each time when we 
+	calculated the recent cpu. It does not account for the 
+	time it takes to calculate the priorities and decide which 
+	thread will run next. The initial load for each thread is 
+	unspecified as well in this example, so it was assumed the 
+	system had just booted and its value was set at 0. When 
+	there were ties, they were broken using Round Robin as 
+	a method was not specified, the way this tiebreaking 
+	queue was implemented and decided upon is explained in 
+	the steps below the table. This behavior is fairly similar
+	to how our scheduler behaves.
+
+>> C4: How is the way you divided the cost of scheduling between code 
 >> inside and outside interrupt context likely to affect performance?
+
+	Our implementation involves very little code happening during the 
+	interrupt itself, so I believe that doing it this way will greatly 
+	improve the overall performance as opposed to doing it inside the 
+	interrupt instead.
 
 ---- RATIONALE ----
 
->> C5: Briefly critique your design, pointing out advantages and
->> disadvantages in your design choices.  If you were to have extra
->> time to work on this part of the project, how might you choose to
+>> C5: Briefly critique your design, pointing out advantages and 
+>> disadvantages in your design choices. If you were to have extra 
+>> time to work on this part of the project, how might you choose to 
 >> refine or improve your design?
 
->> C6: The assignment explains arithmetic for fixed-point math in
->> detail, but it leaves it open to you to implement it.  Why did you
->> decide to implement it the way you did?  If you created an
->> abstraction layer for fixed-point math, that is, an abstract data
->> type and/or a set of functions or macros to manipulate fixed-point
+	It takes a long time to find the thread with the highest priority 
+	since it has to go through 64 queues. I would try to make an 
+	implementation that uses a single queue instead of 64 queues 
+	so it might be able to find the highest priority quicker. 
+
+>> C6: The assignment explains arithmetic for fixed-point math in 
+>> detail, but it leaves it open to you to implement it.  Why did you 
+>> decide to implement it the way you did?  If you created an 
+>> abstraction layer for fixed-point math, that is, an abstract data 
+>> type and/or a set of functions or macros to manipulate fixed-point 
 >> numbers, why did you do so?  If not, why not?
+
+	We decided to implement fixed-point through a different header 
+	file in order to save both time, and make parts where fixed-point 
+	math was required in calculations easier to implement.
 
 			   SURVEY QUESTIONS
 			   ================
 
-Answering these questions is optional, but it will help us improve the
-course in future quarters.  Feel free to tell us anything you
-want--these questions are just to spur your thoughts.  You may also
-choose to respond anonymously in the course evaluations at the end of
+Answering these questions is optional, but it will help us improve the 
+course in future quarters. Feel free to tell us anything you 
+want--these questions are just to spur your thoughts.  You may also 
+choose to respond anonymously in the course evaluations at the end of 
 the quarter.
 
->> In your opinion, was this assignment, or any one of the three problems
+>> In your opinion, was this assignment, or any one of the three problems 
 >> in it, too easy or too hard?  Did it take too long or too little time?
 
->> Did you find that working on a particular part of the assignment gave
+	We didn’t think any of the three problems were too hard, nor did they 
+	take too long or too little. The longest roadblock we did have however 
+	was the time it took to understand the code base.
+
+>> Did you find that working on a particular part of the assignment gave 
 >> you greater insight into some aspect of OS design?
 
->> Is there some particular fact or hint we should give students in
->> future quarters to help them solve the problems?  Conversely, did you
+	It gave us more insight conceptually how an OS is designed and 
+	operates, but as for the execution itself not so much.
+
+>> Is there some particular fact or hint we should give students in 
+>> future quarters to help them solve the problems?  Conversely, did you 
 >> find any of our guidance to be misleading?
 
->> Do you have any suggestions for the TAs to more effectively assist
+	It would be helpful in future quarters if students are shown how to 
+	debug the system using gdb.
+
+>> Do you have any suggestions for the TAs to more effectively assist 
 >> students, either for future quarters or the remaining projects?
 
+	We did not use any TAs for this assignment, so we are unable to 
+	make any comments about this part.
+
 >> Any other comments?
+	While difficult, this was a fun project to work on as a whole.
